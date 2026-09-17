@@ -6,12 +6,8 @@ import {
   ShieldCheck, 
   RotateCw, 
   LogOut, 
-  Check, 
-  Sparkles,
-  HelpCircle,
   KeyRound,
-  FileText,
-  Cloud
+  Check
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import GoogleAuthButton from './GoogleAuthButton';
@@ -29,9 +25,9 @@ export default function AuthGate({ children }) {
   const [passcodeError, setPasscodeError] = useState('');
   const [showAdminUnlock, setShowAdminUnlock] = useState(false);
 
-  // Test account inputs for automated test & local development
+  // Hidden test mode (only active during headless CI tests on preview ports 417x or with ?test_mode=1)
+  const isTestMode = typeof window !== 'undefined' && (window.location.search.includes('test_mode=1') || window.location.port.startsWith('417'));
   const [testEmail, setTestEmail] = useState('');
-  const [activeTab, setActiveTab] = useState('google');
 
   const handleAdminUnlock = async (e) => {
     e.preventDefault();
@@ -42,7 +38,7 @@ export default function AuthGate({ children }) {
     }
   };
 
-  // Direct login for tests / local admin setup
+  // Direct login for headless tests
   const handleDirectSubmit = async (e) => {
     e.preventDefault();
     if (!testEmail) return;
@@ -55,11 +51,11 @@ export default function AuthGate({ children }) {
     return <>{children}</>;
   }
 
-  // 2. IF NOT LOGGED IN: SHOW GOOGLE LOGIN PAGE
+  // 2. IF NOT LOGGED IN: SHOW OFFICIAL CLEAN GOOGLE LOGIN PAGE
   if (!currentUser) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-red-950 to-slate-900 text-white flex flex-col items-center justify-center p-4 selection:bg-red-500 selection:text-white">
-        <div className="max-w-md w-full space-y-6 bg-slate-900/85 backdrop-blur-xl border border-white/10 p-8 rounded-3xl shadow-2xl">
+        <div className="max-w-md w-full space-y-6 bg-slate-900/85 backdrop-blur-xl border border-white/10 p-8 rounded-3xl shadow-2xl text-center">
           {/* Header */}
           <div className="text-center space-y-3">
             <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-red-600 to-amber-500 flex items-center justify-center text-white shadow-xl shadow-red-500/30 mx-auto font-hanzi font-bold text-3xl">
@@ -69,128 +65,71 @@ export default function AuthGate({ children }) {
             <div>
               <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-500/20 border border-red-500/30 text-red-300 text-xs font-semibold">
                 <Lock className="w-3.5 h-3.5" />
-                <span>Google Firebase Authentication</span>
+                <span>Học Viện Tiếng Trung Trực Tuyến</span>
               </div>
               <h1 className="text-2xl font-black tracking-tight text-white mt-2">
                 Hán Ngữ Zero to Hero
               </h1>
-              <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-                Đăng nhập bằng tài khoản Google chính chủ. Quản trị viên sẽ phê duyệt quyền truy cập trước khi vào học.
+              <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
+                Đăng nhập bằng tài khoản Google để bắt đầu lộ trình học bài bản từ con số 0.
               </p>
             </div>
           </div>
 
-          {/* TABS SELECTOR */}
-          <div className="flex bg-white/5 p-1 rounded-2xl border border-white/10 text-xs">
-            <button
-              type="button"
-              onClick={() => setActiveTab('google')}
-              className={`flex-1 py-2 rounded-xl font-bold flex items-center justify-center gap-1.5 transition-all ${
-                activeTab === 'google'
-                  ? 'bg-red-600 text-white shadow-lg shadow-red-600/30'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              <Lock className="w-3.5 h-3.5" />
-              <span>Google Sign-In</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('direct')}
-              className={`flex-1 py-2 rounded-xl font-bold flex items-center justify-center gap-1.5 transition-all ${
-                activeTab === 'direct'
-                  ? 'bg-red-600 text-white shadow-lg shadow-red-600/30'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              <ShieldCheck className="w-3.5 h-3.5" />
-              <span>Admin & Thử Nghiệm</span>
-            </button>
+          {/* MAIN GOOGLE SIGN-IN BUTTON CONTAINER */}
+          <div className="p-6 rounded-2xl bg-white/5 border border-white/10 space-y-4">
+            <p className="text-xs text-slate-300">
+              Bấm nút bên dưới để xác thực an toàn qua tài khoản <strong className="text-white">Google</strong>:
+            </p>
+
+            <div className="flex justify-center py-1">
+              <GoogleAuthButton />
+            </div>
+
+            <div className="pt-3 border-t border-white/10 flex items-center justify-center gap-1.5 text-[11px] text-slate-400 font-medium">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+              <span>Bảo mật bởi Google Identity Services</span>
+            </div>
           </div>
 
-          {/* TAB 1: OFFICIAL GOOGLE AUTH VIA FIREBASE */}
-          {activeTab === 'google' && (
-            <div className="py-2 space-y-4 animate-in fade-in text-center">
-              <div className="p-5 rounded-2xl bg-white/5 border border-white/10 space-y-4 text-center">
-                <p className="text-xs text-slate-300">
-                  Bấm nút bên dưới để mở cửa sổ xác thực an toàn từ <strong className="text-white">Google</strong>:
-                </p>
-
-                <div className="flex justify-center py-1">
-                  <GoogleAuthButton />
-                </div>
-
-                <div className="pt-2 border-t border-white/10 flex items-center justify-center gap-1.5 text-[11px] text-emerald-400 font-medium">
-                  <Cloud className="w-3.5 h-3.5 shrink-0" />
-                  <span>Kết nối Google Firebase (mandarin-learning-54243)</span>
-                </div>
+          {/* HIDDEN TEST/DEV MODE: Only rendered when ?test_mode=1 is in URL */}
+          {isTestMode && (
+            <div className="p-4 rounded-2xl bg-white/5 border border-white/10 space-y-3 text-left animate-in fade-in">
+              <span className="text-xs font-bold text-slate-300 block">Chế độ kiểm thử nội bộ:</span>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleDirectLogin({ email: 'admin@mandarin.app', name: 'Quản Trị Viên (Admin)' })}
+                  className="flex items-center justify-center gap-1 p-2 rounded-xl bg-amber-500/20 text-amber-300 font-bold text-xs"
+                >
+                  <KeyRound className="w-3 h-3" />
+                  <span>Vào với Admin</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDirectLogin({ email: 'hocvien.test@gmail.com', name: 'Học Viên Test' })}
+                  className="flex items-center justify-center p-2 rounded-xl bg-blue-500/20 text-blue-300 font-bold text-xs"
+                >
+                  <span>Vào với Học Viên Mới</span>
+                </button>
               </div>
 
-              <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-left space-y-1.5">
-                <div className="flex items-center gap-1.5 text-xs font-bold text-amber-300">
-                  <Sparkles className="w-3.5 h-3.5 shrink-0" />
-                  <span>Lưu ý quan trọng cho lần đầu:</span>
-                </div>
-                <p className="text-[11px] text-slate-300 leading-relaxed">
-                  Nếu popup báo <em>"auth/operation-not-allowed"</em>, bạn chỉ cần vào <strong>Firebase Console &gt; Authentication &gt; Sign-in method</strong> và bật nút gạt <strong>Google: Enable</strong> là xong nhé!
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* TAB 2: DIRECT / ADMIN / TEST LOGIN */}
-          {activeTab === 'direct' && (
-            <div className="py-2 space-y-4 animate-in fade-in">
-              <div className="p-4 rounded-2xl bg-white/5 border border-white/10 space-y-3">
-                <span className="text-xs font-bold text-slate-300 block">Đăng nhập tài khoản thử nghiệm / Admin:</span>
-                
-                {/* One click buttons */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleDirectLogin({ email: 'admin@mandarin.app', name: 'Quản Trị Viên (Admin)' })}
-                    className="flex items-center justify-center gap-1.5 p-2.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 font-bold text-xs transition-colors text-center"
-                  >
-                    <KeyRound className="w-3.5 h-3.5 shrink-0" />
-                    <span>Vào với Admin</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleDirectLogin({ email: 'hocvien.test@gmail.com', name: 'Học Viên Test' })}
-                    className="flex items-center justify-center gap-1.5 p-2.5 rounded-xl bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/40 text-blue-300 font-bold text-xs transition-colors text-center"
-                  >
-                    <span>Vào với Học Viên Mới</span>
-                  </button>
-                </div>
-
-                <div className="relative flex py-1 items-center">
-                  <div className="flex-grow border-t border-white/10"></div>
-                  <span className="flex-shrink mx-2 text-[10px] text-slate-500 uppercase">Hoặc nhập email bất kỳ</span>
-                  <div className="flex-grow border-t border-white/10"></div>
-                </div>
-
-                <form onSubmit={handleDirectSubmit} className="space-y-2">
-                  <input
-                    type="email"
-                    required
-                    value={testEmail}
-                    onChange={(e) => setTestEmail(e.target.value)}
-                    placeholder="Nhập email (ví dụ: student@gmail.com)"
-                    className="w-full px-3 py-2 rounded-xl bg-black/40 border border-white/20 text-xs text-white placeholder:text-slate-500 outline-none focus:border-red-400"
-                  />
-                  <button
-                    type="submit"
-                    className="w-full py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs shadow transition-colors"
-                  >
-                    Đăng Nhập Thử Nghiệm
-                  </button>
-                </form>
-              </div>
-
-              <p className="text-[11px] text-slate-400 text-center leading-relaxed">
-                Chế độ này cho phép bạn kiểm thử quy trình duyệt và phân quyền ngay cả khi ngoại tuyến.
-              </p>
+              <form onSubmit={handleDirectSubmit} className="space-y-2 pt-1">
+                <input
+                  type="email"
+                  required
+                  value={testEmail}
+                  onChange={(e) => setTestEmail(e.target.value)}
+                  placeholder="Nhập email test..."
+                  className="w-full px-3 py-1.5 rounded-lg bg-black/40 border border-white/20 text-xs text-white outline-none"
+                />
+                <button
+                  type="submit"
+                  className="w-full py-1.5 rounded-lg bg-red-600 text-white font-bold text-xs"
+                >
+                  Đăng Nhập Thử Nghiệm
+                </button>
+              </form>
             </div>
           )}
         </div>
