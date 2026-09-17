@@ -3,8 +3,10 @@ import {
   auth, 
   db, 
   signInWithGoogleFirebase, 
+  signInWithGoogleRedirectMode,
   signOutFirebase 
 } from '../firebase';
+import { getRedirectResult, onAuthStateChanged } from 'firebase/auth';
 import { 
   doc, 
   setDoc, 
@@ -80,6 +82,73 @@ export function AuthProvider({ children }) {
       return null;
     }
   });
+
+  // Reusable helper to process authenticated Firebase User
+  const processFirebaseUser = (user) => {
+    if (!user || !user.email) return null;
+    const email = user.email.trim().toLowerCase();
+    const name = user.displayName || email.split('@')[0];
+    const picture = user.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(email)}`;
+    const googleUid = user.uid;
+
+    const isAdminEmail = checkIsAdmin(email);
+
+    setUsers(prev => {
+      const existing = prev.find(u => u.email.toLowerCase() === email);
+      let loggedInUser;
+
+      if (existing) {
+        loggedInUser = {
+          ...existing,
+          name,
+          picture,
+          googleUid,
+          role: isAdminEmail ? 'admin' : existing.role,
+          status: isAdminEmail ? 'approved' : existing.status,
+          lastLoginAt: new Date().toISOString()
+        };
+      } else {
+        loggedInUser = {
+          id: googleUid || `user-${Date.now()}`,
+          email,
+          name,
+          picture,
+          googleUid,
+          role: isAdminEmail ? 'admin' : 'user',
+          status: isAdminEmail ? 'approved' : 'pending',
+          createdAt: new Date().toISOString(),
+          approvedAt: isAdminEmail ? new Date().toISOString() : null,
+          lastLoginAt: new Date().toISOString()
+        };
+      }
+
+      if (db) {
+        setDoc(doc(db, 'users', email), loggedInUser, { merge: true }).catch(() => {});
+      }
+
+      setCurrentUser(loggedInUser);
+      return [loggedInUser, ...prev.filter(u => u.email.toLowerCase() !== email)];
+    });
+  };
+
+  // Catch Redirect Result or Auth State Change on page load
+  useEffect(() => {
+    getRedirectResult(auth).then(result => {
+      if (result?.user) {
+        processFirebaseUser(result.user);
+      }
+    }).catch(err => {
+      console.warn('Redirect auth result warning:', err.message);
+    });
+
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      if (firebaseUser) {
+        processFirebaseUser(firebaseUser);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [adminEmail]);
 
   // Auto-upgrade logged in user if their email is in admin list
   useEffect(() => {
@@ -230,62 +299,24 @@ export function AuthProvider({ children }) {
    */
   const loginWithGoogle = async () => {
     try {
-      const { user, error } = await signInWithGoogleFirebase();
+      const { user, error, code } = await signInWithGoogleFirebase();
       if (error || !user) {
-        return { success: false, error: error || 'Đăng nhập Google thất bại.' };
+        return { success: false, error: error || 'Đăng nhập Google thất bại.', code };
       }
 
-      const email = user.email.trim().toLowerCase();
-      const name = user.displayName || email.split('@')[0];
-      const picture = user.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(email)}`;
-      const googleUid = user.uid;
-
-      const isAdminEmail = checkIsAdmin(email);
-
-      const existing = users.find(u => u.email.toLowerCase() === email);
-
-      let loggedInUser;
-      if (existing) {
-        loggedInUser = {
-          ...existing,
-          name,
-          picture,
-          googleUid,
-          role: isAdminEmail ? 'admin' : existing.role,
-          status: isAdminEmail ? 'approved' : existing.status,
-          lastLoginAt: new Date().toISOString()
-        };
-      } else {
-        loggedInUser = {
-          id: googleUid || `user-${Date.now()}`,
-          email,
-          name,
-          picture,
-          googleUid,
-          role: isAdminEmail ? 'admin' : 'user',
-          status: isAdminEmail ? 'approved' : 'pending',
-          createdAt: new Date().toISOString(),
-          approvedAt: isAdminEmail ? new Date().toISOString() : null,
-          lastLoginAt: new Date().toISOString()
-        };
-      }
-
-      // Sync to Firestore in background
-      if (db) {
-        setDoc(doc(db, 'users', email), loggedInUser, { merge: true }).catch(() => {});
-      }
-
-      setUsers(prev => {
-        const filtered = prev.filter(u => u.email.toLowerCase() !== email);
-        return [loggedInUser, ...filtered];
-      });
-
-      setCurrentUser(loggedInUser);
-      return { success: true, user: loggedInUser };
+      processFirebaseUser(user);
+      return { success: true, user };
     } catch (err) {
       console.error('Firebase Login Exception:', err);
-      return { success: false, error: err.message };
+      return { success: false, error: err.message, code: err.code };
     }
+  };
+
+  /**
+   * Login with Google using Redirect (immune to popup blockers)
+   */
+  const loginWithGoogleRedirect = async () => {
+    return await signInWithGoogleRedirectMode();
   };
 
   /**
@@ -471,6 +502,7 @@ export function AuthProvider({ children }) {
     isAdmin,
     pendingCount,
     loginWithGoogle,
+    loginWithGoogleRedirect,
     handleDirectLogin,
     approveUser,
     rejectUser,

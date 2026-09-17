@@ -1,22 +1,34 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { AlertCircle, Loader2 } from 'lucide-react';
+import { AlertCircle, Loader2, ExternalLink, ShieldAlert, CheckCircle2 } from 'lucide-react';
 
 export default function GoogleAuthButton() {
-  const { loginWithGoogle } = useAuth();
+  const { loginWithGoogle, loginWithGoogleRedirect } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [redirectLoading, setRedirectLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [isPopupBlocked, setIsPopupBlocked] = useState(false);
 
+  // Popup sign-in
   const handleSignIn = async () => {
     setLoading(true);
     setErrorMsg('');
+    setIsPopupBlocked(false);
+
     const result = await loginWithGoogle();
     setLoading(false);
 
     if (!result.success) {
-      if (result.error.includes('auth/popup-closed-by-user')) {
-        setErrorMsg('Bạn đã đóng cửa sổ đăng nhập Google.');
-      } else if (result.error.includes('auth/operation-not-allowed') || result.error.includes('configuration-not-found')) {
+      const errStr = (result.error || '') + ' ' + (result.code || '');
+      
+      if (errStr.includes('auth/popup-blocked')) {
+        setIsPopupBlocked(true);
+        setErrorMsg('Trình duyệt của bạn đã chặn cửa sổ Popup. Vui lòng bấm nút "Đăng Nhập Bằng Chuyển Hướng" bên dưới (không cần mở popup) hoặc cho phép popup trên thanh địa chỉ duyệt web.');
+      } else if (errStr.includes('auth/popup-closed-by-user')) {
+        setErrorMsg('Bạn đã đóng cửa sổ đăng nhập Google trước khi hoàn tất.');
+      } else if (errStr.includes('auth/unauthorized-domain')) {
+        setErrorMsg('Tên miền hiện tại chưa được cấp phép trong Firebase! Vui lòng vào Firebase Console -> Authentication -> Settings -> Authorized domains -> Thêm domain này.');
+      } else if (errStr.includes('auth/operation-not-allowed') || errStr.includes('configuration-not-found')) {
         setErrorMsg('Chưa bật Google Provider trong Firebase! Vui lòng vào Firebase Console -> Authentication -> Sign-in method -> Bật Google: Enable.');
       } else {
         setErrorMsg(result.error);
@@ -24,12 +36,24 @@ export default function GoogleAuthButton() {
     }
   };
 
+  // Redirect sign-in (immune to popup blockers)
+  const handleRedirectSignIn = async () => {
+    setRedirectLoading(true);
+    setErrorMsg('');
+    const result = await loginWithGoogleRedirect();
+    if (result?.error) {
+      setRedirectLoading(false);
+      setErrorMsg(result.error);
+    }
+  };
+
   return (
     <div className="flex flex-col items-center justify-center space-y-3 w-full">
+      {/* Primary Popup Sign-In Button */}
       <button
         type="button"
         onClick={handleSignIn}
-        disabled={loading}
+        disabled={loading || redirectLoading}
         className="w-full flex items-center justify-center gap-3 px-5 py-3 rounded-2xl bg-white hover:bg-slate-50 text-slate-800 font-bold text-sm shadow-xl shadow-black/30 border border-slate-200 transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-75 disabled:cursor-not-allowed group"
       >
         {loading ? (
@@ -57,11 +81,65 @@ export default function GoogleAuthButton() {
         <span>{loading ? 'Đang mở cửa sổ Google...' : 'Đăng nhập bằng Google'}</span>
       </button>
 
-      {errorMsg && (
-        <div className="flex items-start gap-2 text-xs text-rose-300 bg-rose-500/15 border border-rose-500/30 p-3 rounded-xl max-w-sm text-left animate-in fade-in">
+      {/* POPUP BLOCKED PROMINENT FALLBACK */}
+      {isPopupBlocked && (
+        <div className="w-full p-4 rounded-2xl bg-amber-500/15 border border-amber-500/40 text-left space-y-2.5 animate-in fade-in slide-in-from-top-2">
+          <div className="flex items-center gap-2 text-amber-300 font-bold text-xs">
+            <ShieldAlert className="w-4 h-4 shrink-0 text-amber-400" />
+            <span>Trình duyệt đã chặn cửa sổ Popup</span>
+          </div>
+          <p className="text-[11px] text-slate-300 leading-relaxed">
+            Safari, Chrome hoặc trình duyệt của bạn đang chặn popup tự động. Bấm nút dưới đây để đăng nhập trực tiếp qua trang của Google mà không cần popup:
+          </p>
+          <button
+            type="button"
+            onClick={handleRedirectSignIn}
+            disabled={redirectLoading}
+            className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-lg transition-all active:scale-[0.98]"
+          >
+            {redirectLoading ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Đang chuyển hướng sang Google...</span>
+              </>
+            ) : (
+              <>
+                <ExternalLink className="w-4 h-4" />
+                <span>Đăng Nhập Chuyển Hướng (Không cần Popup)</span>
+              </>
+            )}
+          </button>
+        </div>
+      )}
+
+      {/* ERROR ALERT (IF NOT POPUP BLOCKED) */}
+      {errorMsg && !isPopupBlocked && (
+        <div className="flex items-start gap-2 text-xs text-rose-300 bg-rose-500/15 border border-rose-500/30 p-3 rounded-xl max-w-sm text-left animate-in fade-in w-full">
           <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
           <span className="leading-relaxed">{errorMsg}</span>
         </div>
+      )}
+
+      {/* Permanent subtle redirect option for users whose browser always blocks popups */}
+      {!isPopupBlocked && (
+        <button
+          type="button"
+          onClick={handleRedirectSignIn}
+          disabled={loading || redirectLoading}
+          className="text-[11px] text-slate-400 hover:text-amber-300 underline underline-offset-2 transition-colors flex items-center gap-1 mt-1"
+        >
+          {redirectLoading ? (
+            <>
+              <Loader2 className="w-3 h-3 animate-spin" />
+              <span>Đang chuyển hướng...</span>
+            </>
+          ) : (
+            <>
+              <ExternalLink className="w-3 h-3" />
+              <span>Bị chặn popup? Đăng nhập chuyển hướng tại đây</span>
+            </>
+          )}
+        </button>
       )}
     </div>
   );

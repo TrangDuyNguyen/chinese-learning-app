@@ -3,6 +3,8 @@ import {
   getAuth, 
   GoogleAuthProvider, 
   signInWithPopup, 
+  signInWithRedirect,
+  getRedirectResult,
   signOut as firebaseSignOut,
   onAuthStateChanged 
 } from 'firebase/auth';
@@ -53,14 +55,29 @@ export async function signInWithGoogleFirebase() {
     const result = await signInWithPopup(auth, googleProvider);
     return {
       user: result.user,
-      error: null
+      error: null,
+      code: null
     };
   } catch (error) {
     console.error('Firebase Google Sign-In error:', error);
     return {
       user: null,
-      error: error.message || 'Đăng nhập Google thất bại hoặc cửa sổ đã bị đóng.'
+      error: error.message || 'Đăng nhập Google thất bại hoặc cửa sổ đã bị đóng.',
+      code: error.code || ''
     };
+  }
+}
+
+/**
+ * Sign in with Google using Redirect (bypasses popup blockers)
+ */
+export async function signInWithGoogleRedirectMode() {
+  try {
+    await signInWithRedirect(auth, googleProvider);
+    return { error: null };
+  } catch (error) {
+    console.error('Firebase Google Redirect error:', error);
+    return { error: error.message || 'Chuyển hướng thất bại.' };
   }
 }
 
