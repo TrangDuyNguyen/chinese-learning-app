@@ -3,7 +3,12 @@ import { useAuth } from '../context/AuthContext';
 import { AlertCircle, Loader2, ExternalLink, ShieldAlert, CheckCircle2 } from 'lucide-react';
 
 export default function GoogleAuthButton() {
-  const { loginWithGoogle, loginWithGoogleRedirect } = useAuth();
+  const { 
+    loginWithGoogle, 
+    loginWithGoogleRedirect, 
+    redirectAuthError, 
+    setRedirectAuthError 
+  } = useAuth();
   const [loading, setLoading] = useState(false);
   const [redirectLoading, setRedirectLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -13,6 +18,7 @@ export default function GoogleAuthButton() {
   const handleSignIn = async () => {
     setLoading(true);
     setErrorMsg('');
+    if (setRedirectAuthError) setRedirectAuthError('');
     setIsPopupBlocked(false);
 
     const result = await loginWithGoogle();
@@ -27,7 +33,7 @@ export default function GoogleAuthButton() {
       } else if (errStr.includes('auth/popup-closed-by-user')) {
         setErrorMsg('Bạn đã đóng cửa sổ đăng nhập Google trước khi hoàn tất.');
       } else if (errStr.includes('auth/unauthorized-domain')) {
-        setErrorMsg('Tên miền hiện tại chưa được cấp phép trong Firebase! Vui lòng vào Firebase Console -> Authentication -> Settings -> Authorized domains -> Thêm domain này.');
+        setErrorMsg(`Tên miền "${window.location.hostname}" chưa được cấp phép trong Firebase! Vui lòng vào Firebase Console -> Authentication -> Settings -> Authorized domains -> Thêm "${window.location.hostname}".`);
       } else if (errStr.includes('auth/operation-not-allowed') || errStr.includes('configuration-not-found')) {
         setErrorMsg('Chưa bật Google Provider trong Firebase! Vui lòng vào Firebase Console -> Authentication -> Sign-in method -> Bật Google: Enable.');
       } else {
@@ -40,6 +46,7 @@ export default function GoogleAuthButton() {
   const handleRedirectSignIn = async () => {
     setRedirectLoading(true);
     setErrorMsg('');
+    if (setRedirectAuthError) setRedirectAuthError('');
     const result = await loginWithGoogleRedirect();
     if (result?.error) {
       setRedirectLoading(false);
@@ -49,6 +56,19 @@ export default function GoogleAuthButton() {
 
   return (
     <div className="flex flex-col items-center justify-center space-y-3 w-full">
+      {/* REDIRECT AUTH ERROR ALERT */}
+      {redirectAuthError && (
+        <div className="w-full p-3.5 rounded-2xl bg-rose-500/20 border border-rose-500/40 text-left space-y-1.5 animate-in fade-in">
+          <div className="flex items-center gap-2 text-rose-300 font-bold text-xs">
+            <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+            <span>Thông Báo Xác Thực Google</span>
+          </div>
+          <p className="text-xs text-rose-200 leading-relaxed">
+            {redirectAuthError}
+          </p>
+        </div>
+      )}
+
       {/* Primary Popup Sign-In Button */}
       <button
         type="button"

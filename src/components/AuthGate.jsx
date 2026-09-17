@@ -25,8 +25,8 @@ export default function AuthGate({ children }) {
   const [passcodeError, setPasscodeError] = useState('');
   const [showAdminUnlock, setShowAdminUnlock] = useState(false);
 
-  // Hidden test mode (only active during headless CI tests on preview ports 417x or with ?test_mode=1)
-  const isTestMode = typeof window !== 'undefined' && (window.location.search.includes('test_mode=1') || window.location.port.startsWith('417'));
+  // Hidden test mode (active on localhost during development/tests or with ?test_mode=1)
+  const isTestMode = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.search.includes('test_mode=1') || window.location.port.startsWith('417'));
   const [testEmail, setTestEmail] = useState('');
 
   const handleAdminUnlock = async (e) => {

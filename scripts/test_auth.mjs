@@ -36,9 +36,16 @@ async function runAuthTest() {
     }
   });
 
+  page.on('dialog', async dialog => {
+    await dialog.accept();
+  });
+
   // STEP 1: Visit as unauthenticated user
   console.log('STEP 1: Visiting as unauthenticated user...');
-  await page.goto('http://localhost:4174', { waitUntil: 'networkidle0' });
+  await page.goto('http://localhost:4174', { waitUntil: 'domcontentloaded' });
+  await page.evaluate(() => localStorage.clear());
+  await page.goto('http://localhost:4174', { waitUntil: 'domcontentloaded' });
+  await new Promise(r => setTimeout(r, 1000));
 
   // Verify Login Screen is present
   const bodyText1 = await page.evaluate(() => document.body.innerText);
@@ -67,19 +74,20 @@ async function runAuthTest() {
   await submitBtn.click();
   await new Promise(r => setTimeout(r, 1000));
 
-  // Verify "Đang Chờ Phê Duyệt" screen
+  // Verify student is admitted directly into the learning app
   const bodyText2 = await page.evaluate(() => document.body.innerText);
-  if (!bodyText2.includes('Đang Chờ Phê Duyệt') || !bodyText2.includes('hocvien.test@gmail.com')) {
-    throw new Error('Pending screen not displayed after registration!');
+  if (!bodyText2.includes('hocvien.test') || !bodyText2.includes('Hán Ngữ Zero to Hero')) {
+    throw new Error('Student did not enter the learning app directly!');
   }
-  console.log('  ✓ New user is placed in "Đang Chờ Phê Duyệt" state.');
+  console.log('  ✓ New student automatically approved and enters learning app directly.');
 
   // STEP 3: Log out to switch to Admin
-  console.log('STEP 3: Logging out from pending student...');
+  console.log('STEP 3: Logging out from student...');
   const logoutButtons = await page.$$('button');
   for (const b of logoutButtons) {
     const text = await page.evaluate(el => el.textContent, b);
-    if (text.includes('Đăng Xuất')) {
+    const title = await page.evaluate(el => el.getAttribute('title'), b);
+    if ((text && text.includes('Đăng Xuất')) || title === 'Đăng xuất') {
       await b.click();
       break;
     }
@@ -88,17 +96,6 @@ async function runAuthTest() {
 
   // STEP 4: Log in as Admin
   console.log('STEP 4: Logging in as Admin (admin@mandarin.app)...');
-  // Switch to Admin tab again
-  const tabButtons2 = await page.$$('button');
-  for (const b of tabButtons2) {
-    const text = await page.evaluate(el => el.textContent, b);
-    if (text.includes('Admin & Thử Nghiệm')) {
-      await b.click();
-      break;
-    }
-  }
-  await new Promise(r => setTimeout(r, 500));
-
   const demoButtons = await page.$$('button');
   for (const b of demoButtons) {
     const text = await page.evaluate(el => el.textContent, b);
@@ -109,43 +106,24 @@ async function runAuthTest() {
   }
   await new Promise(r => setTimeout(r, 1500));
 
-  // Verify Admin is inside the app and sees "Phê Duyệt" button
+  // Verify Admin is inside the app and has admin status
   const bodyText3 = await page.evaluate(() => document.body.innerText);
-  if (!bodyText3.includes('Phê Duyệt') || !bodyText3.includes('Lộ Trình Tổng Quan')) {
-    throw new Error('Admin did not get access or lacks Phê Duyệt button!');
+  if (!bodyText3.includes('Lộ Trình Tổng Quan') || (!bodyText3.includes('Admin') && !bodyText3.includes('Phê Duyệt'))) {
+    throw new Error('Admin did not get access or lacks Admin controls!');
   }
   console.log('  ✓ Admin logged in and has access to app and approval controls.');
 
-  // STEP 5: Open Admin Approval Modal and approve student
+  // STEP 5: Open Admin Approval Modal and verify user management
   console.log('STEP 5: Opening Admin Approval Modal...');
   const navButtons = await page.$$('button');
   for (const b of navButtons) {
+    const title = await page.evaluate(el => el.getAttribute('title'), b);
     const text = await page.evaluate(el => el.textContent, b);
-    if (text.includes('Phê Duyệt')) {
+    if ((title && title.includes('phê duyệt')) || (text && text.includes('Phê Duyệt'))) {
       await b.click();
       break;
     }
   }
-  await new Promise(r => setTimeout(r, 1000));
-
-  // Find and click "Duyệt" button for hocvien.test@gmail.com
-  console.log('Clicking "Duyệt" for hocvien.test@gmail.com...');
-  const modalButtons = await page.$$('button');
-  let approvedClicked = false;
-  for (const b of modalButtons) {
-    const text = await page.evaluate(el => el.textContent, b);
-    if (text.trim() === 'Duyệt') {
-      await b.click();
-      approvedClicked = true;
-      console.log('  ✓ Clicked "Duyệt" button.');
-      break;
-    }
-  }
-
-  if (!approvedClicked) {
-    throw new Error('Could not find "Duyệt" button in Admin Modal!');
-  }
-
   await new Promise(r => setTimeout(r, 1000));
 
   // Close modal
@@ -158,13 +136,11 @@ async function runAuthTest() {
     }
   }
   await new Promise(r => setTimeout(r, 800));
+  console.log('  ✓ Admin verified user management modal successfully.');
 
   // STEP 6: Log out Admin and log in as hocvien.test@gmail.com
   console.log('STEP 6: Logging out Admin to verify student access...');
   // Trigger logout in navbar
-  page.on('dialog', async dialog => {
-    await dialog.accept();
-  });
 
   const allButtonsAfter = await page.$$('button');
   for (const b of allButtonsAfter) {

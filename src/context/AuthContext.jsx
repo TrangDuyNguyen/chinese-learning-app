@@ -83,6 +83,8 @@ export function AuthProvider({ children }) {
     }
   });
 
+  const [redirectAuthError, setRedirectAuthError] = useState('');
+
   // Reusable helper to process authenticated Firebase User
   const processFirebaseUser = (user) => {
     if (!user || !user.email) return null;
@@ -104,7 +106,8 @@ export function AuthProvider({ children }) {
           picture,
           googleUid,
           role: isAdminEmail ? 'admin' : existing.role,
-          status: isAdminEmail ? 'approved' : existing.status,
+          // Auto-approve all Google logins so students can learn immediately!
+          status: existing.status === 'rejected' ? 'rejected' : 'approved',
           lastLoginAt: new Date().toISOString()
         };
       } else {
@@ -115,9 +118,10 @@ export function AuthProvider({ children }) {
           picture,
           googleUid,
           role: isAdminEmail ? 'admin' : 'user',
-          status: isAdminEmail ? 'approved' : 'pending',
+          // Auto-approve new Google users directly into the learning roadmap
+          status: 'approved',
           createdAt: new Date().toISOString(),
-          approvedAt: isAdminEmail ? new Date().toISOString() : null,
+          approvedAt: new Date().toISOString(),
           lastLoginAt: new Date().toISOString()
         };
       }
@@ -138,7 +142,14 @@ export function AuthProvider({ children }) {
         processFirebaseUser(result.user);
       }
     }).catch(err => {
-      console.warn('Redirect auth result warning:', err.message);
+      console.error('Redirect auth result error:', err);
+      const code = err.code || '';
+      const msg = err.message || '';
+      if (code.includes('auth/unauthorized-domain') || msg.includes('unauthorized-domain')) {
+        setRedirectAuthError(`Tên miền "${window.location.hostname}" chưa được cấp phép trong Firebase! Vui lòng vào Firebase Console -> Authentication -> Settings -> Authorized domains để thêm tên miền này.`);
+      } else {
+        setRedirectAuthError(`Lỗi đăng nhập Google: ${msg || code}`);
+      }
     });
 
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
@@ -149,6 +160,15 @@ export function AuthProvider({ children }) {
 
     return () => unsubscribe();
   }, [adminEmail]);
+
+  // Auto-upgrade logged in Google user to approved if they were pending
+  useEffect(() => {
+    if (currentUser && currentUser.googleUid && currentUser.status === 'pending') {
+      const updated = { ...currentUser, status: 'approved' };
+      setCurrentUser(updated);
+      setUsers(prev => prev.map(u => u.email.toLowerCase() === currentUser.email.toLowerCase() ? updated : u));
+    }
+  }, [currentUser]);
 
   // Auto-upgrade logged in user if their email is in admin list
   useEffect(() => {
@@ -501,6 +521,8 @@ export function AuthProvider({ children }) {
     isApproved,
     isAdmin,
     pendingCount,
+    redirectAuthError,
+    setRedirectAuthError,
     loginWithGoogle,
     loginWithGoogleRedirect,
     handleDirectLogin,
